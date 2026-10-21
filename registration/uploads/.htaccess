@@ -1,0 +1,9 @@
+# Uploaded ID/document images are private. Nothing here is served directly:
+# admins view them only through ../file.php (login + admin check).
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

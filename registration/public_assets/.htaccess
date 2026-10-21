@@ -1,0 +1,9 @@
+# Admin-uploaded branding/instructional images meant to be public (e.g. the "how to redeem" guide shown on the
+# success screen). Unlike uploads/ (customer ID photos), nothing here is private - served directly.
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Allow from all
+</IfModule>

@@ -1,0 +1,14 @@
+# Secrets - never commit real credentials
+/.env
+/registration/.env
+/registration/mail_config.local.php
+/registration/logs/
+/registration/logs/mail_operations*.log
+/mamabe_debug.txt
+
+# Uploaded customer documents (pink book / baby health book photos) - real customer PII, never committed.
+# Once in git history it stays there even after a later delete, so this is excluded outright.
+/uploads/*
+!/uploads/.gitkeep
+/registration/uploads/*
+!/registration/uploads/.htaccess

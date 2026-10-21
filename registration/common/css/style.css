@@ -1,0 +1,120 @@
+/* Mamabe admin pages - small additions on top of odb's shared framework (layout.css / page.css / alpro-*.css).
+   Everything else (header box, fieldset, myTable, alpro-btn, alpro-alert) comes from the shared framework.
+   The public registration form (on the education server) has its own copy of what it needs. */
+
+[hidden] { display: none !important; }
+
+/* ── Admin pages ──────────────────────────────────────────────────────────── */
+/* MamaBe logo in the blue header box: white chip so the teal logo stays visible on the blue */
+.headerH1 img.mamabe-header-logo { width: 30px; height: 30px; padding: 3px; background: #fff; border-radius: 6px; box-sizing: border-box; }
+
+/* ── Filter bar (same look as the MamaBe Mama List search bar) ───────────── */
+.mamabe-search-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.mamabe-search-bar input[type=text],
+.mamabe-search-bar select,
+.mamabe-search-bar .alpro-btn {
+    height: 34px; padding: 0 8px; border: 1px solid #ccc; border-radius: 4px;
+    font-size: 0.85em; box-sizing: border-box; white-space: nowrap;
+}
+.mamabe-search-bar input[type=text] { flex: 1 1 220px; }
+.mamabe-search-bar select { width: 150px; line-height: normal; }
+.mamabe-search-bar .alpro-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.mamabe-count { font-weight: normal; color: #888; font-size: 0.9em; }
+
+/* ── Table cells ──────────────────────────────────────────────────────────── */
+.alpro-table td { vertical-align: top; }
+.mamabe-muted { color: #999; font-size: 0.9em; }
+.mamabe-read { line-height: 1.6; overflow-wrap: anywhere; }
+
+/* Registrations list: 6 columns that fit the screen; scrolls sideways only on very narrow screens.
+   One row per person (mother, then each baby); Submitted spans the whole event (rowspan) and stripes alternate
+   per event so a multi-person event reads as one group. */
+.mamabe-table-wrap { overflow-x: auto; }
+.mamabe-list { table-layout: fixed; min-width: 860px; }
+.mamabe-list .mamabe-col-date { width: 92px; }
+.mamabe-list .mamabe-col-doc { width: 150px; }
+.mamabe-list td { overflow-wrap: anywhere; vertical-align: top; }
+.mamabe-list tr.mamabe-stripe td { background: #f8fafc; }
+.mamabe-note { margin: 6px 0 4px; line-height: 1.45; color: #8a5a00; }
+.mamabe-ai-read { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e3e3e3; }
+.mamabe-doc-label { font-size: 0.8em; color: #888; margin: 0 0 3px; }
+/* "Ask AI to re-read" - small link-style button under the result */
+.mamabe-reread {
+    margin-top: 8px; padding: 3px 9px; font-size: 0.8em; color: #2a6496; background: #fff;
+    border: 1px solid #b8cde3; border-radius: 4px; cursor: pointer; white-space: nowrap;
+}
+.mamabe-reread:hover { background: #e8f0fa; }
+.mamabe-reread:disabled { opacity: .6; cursor: wait; }
+
+/* Approve / Reject - same action-button design as aap (AlproApprovalProtocol): solid blue Approve,
+   white/red-outline Reject - see aap/aap_update.php's aap-btn-action-primary / aap-btn-action-danger. */
+.mamabe-approve-btn, .mamabe-reject-btn {
+    padding: 7px 16px; font-size: 0.95em; font-weight: bold; border-radius: 5px; cursor: pointer; white-space: nowrap;
+}
+.mamabe-approve-btn { color: #fff; background: #0d6efd; border: 1px solid #0d6efd; }
+.mamabe-approve-btn:hover { background: #0b5ed7; border-color: #0b5ed7; }
+.mamabe-reject-btn { color: #dc3545; background: #fff; border: 1px solid #dc3545; }
+.mamabe-reject-btn:hover { background: #dc3545; color: #fff; }
+.mamabe-approve-btn:disabled, .mamabe-reject-btn:disabled { opacity: .6; cursor: wait; }
+.mamabe-doc-label + .mamabe-thumb { margin-bottom: 8px; }
+.mamabe-address { line-height: 1.5; max-width: 260px; margin: 2px 0 4px; }
+.mamabe-ok { color: #128C7E; font-weight: bold; }
+.mamabe-bad { color: #c82333; font-weight: bold; }
+.mamabe-tag { display: inline-block; margin-top: 3px; font-size: 0.75em; padding: 1px 7px; border-radius: 3px; background: #f1f3f5; color: #6c757d; border: 1px solid #dee2e6; white-space: nowrap; }
+.mamabe-tag-ok { background: #e8fff1; color: #128C7E; border-color: #b7f2ce; }
+.mamabe-tag-new { background: #e8f8fb; color: #0e8fa6; border-color: #b9dde6; }
+.mamabe-small { font-size: 0.8em; margin-top: 4px; }
+
+/* Status pill - never .badge (page.css turns it into a notification dot) */
+.mamabe-pill {
+    display: inline-block; font-size: 0.8em; font-weight: bold; padding: 2px 9px; border-radius: 10px;
+    color: #fff; white-space: nowrap;
+}
+.mamabe-pill-gray { background: #6c757d; }
+.mamabe-pill-blue { background: #2a6496; }
+.mamabe-pill-green { background: #128C7E; }
+.mamabe-pill-red { background: #c82333; }
+.mamabe-pill-yellow { background: #f0ad4e; color: #212529; }
+
+/* Attachment thumbnail: fits the Document column, click to enlarge */
+.mamabe-thumb {
+    display: block; width: 100%; max-width: 130px; max-height: 130px; object-fit: contain; background: #f1f3f5;
+    border: 1px solid #ddd; border-radius: 4px; cursor: zoom-in;
+}
+
+/* ── Pagination (same look as the MamaBe Mama List) ───────────────────────── */
+.mamabe-pagination { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.mamabe-pagination a, .mamabe-pagination span {
+    padding: 4px 10px; border: 1px solid #ccc; border-radius: 4px;
+    font-size: 0.88em; text-decoration: none; color: #2a6496;
+}
+.mamabe-pagination a:hover { background: #e8f0fa; }
+.mamabe-pagination span.current { background: #2a6496; color: #fff; border-color: #2a6496; font-weight: bold; }
+.mamabe-pagination .info { border: none; color: #888; font-size: 0.85em; }
+
+/* ── AI Analysis tiles + breakdown grid ───────────────────────────────────── */
+.mamabe-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0; }
+.mamabe-kpi { background: #f8fafc; border: 1px solid var(--alpro-border-soft, #e3e8ee); border-radius: 8px; padding: 10px 12px; }
+.mamabe-kpi-label { font-size: 0.78em; color: #888; }
+.mamabe-kpi-value { font-size: 1.4em; font-weight: bold; color: var(--alpro-text, #333); margin: 2px 0; }
+.mamabe-kpi-hint { font-size: 0.75em; color: #999; }
+.mamabe-ai-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.mamabe-card-mini { border: 1px solid var(--alpro-border-soft, #e3e8ee); border-radius: 8px; padding: 12px; }
+.mamabe-card-mini-title { font-weight: bold; margin-bottom: 8px; font-size: 0.95em; }
+
+/* ── Click-to-enlarge viewer ──────────────────────────────────────────────── */
+.mamabe-lightbox {
+    position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.mamabe-lightbox[hidden] { display: none; }
+.mamabe-lightbox-box {
+    background: #fff; border-radius: var(--alpro-radius); box-shadow: var(--alpro-shadow);
+    max-width: 95vw; max-height: 95vh; display: flex; flex-direction: column; overflow: hidden;
+}
+.mamabe-lightbox-head {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 10px 14px; border-bottom: 1px solid var(--alpro-border-soft); text-align: left;
+}
+.mamabe-lightbox-body { overflow: auto; padding: 10px; text-align: center; }
+.mamabe-lightbox-body img { max-width: 100%; height: auto; }
