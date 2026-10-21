@@ -2,8 +2,8 @@
 /.env
 /registration/.env
 /registration/mail_config.local.php
-/registration/logs/
-/registration/logs/mail_operations*.log
+/registration/logs/*
+!/registration/logs/.htaccess
 /mamabe_debug.txt
 
 # Uploaded customer documents (pink book / baby health book photos) - real customer PII, never committed.
