@@ -73,7 +73,7 @@ if ($date_type == 1) {
         JOIN mamabe_baby b ON b.mama_id = m.id
         LEFT JOIN outlet o ON o.id = m.outlet_id
         WHERE m.recycle=0 AND b.recycle=0 AND b.is_delivered != 2
-          AND b.lmp IS NOT NULL AND b.lmp != '0000-00-00'
+          AND b.lmp IS NOT NULL AND b.lmp > '1000-01-01'
           AND DATEDIFF(CURDATE(), b.lmp) >= ?
           AND DATEDIFF(DATE(m.timestamp), b.lmp) <= ?
         ORDER BY b.lmp DESC
@@ -89,7 +89,7 @@ if ($date_type == 1) {
         JOIN mamabe_baby b ON b.mama_id = m.id
         LEFT JOIN outlet o ON o.id = m.outlet_id
         WHERE m.recycle=0 AND b.recycle=0 AND b.is_delivered=1
-          AND b.dob IS NOT NULL AND b.dob != '0000-00-00'
+          AND b.dob IS NOT NULL AND b.dob > '1000-01-01'
           AND DATEDIFF(CURDATE(), b.dob) >= ?
           AND DATEDIFF(DATE(m.timestamp), b.dob) <= ?
         ORDER BY b.dob DESC
@@ -105,7 +105,7 @@ if ($date_type == 1) {
         JOIN mamabe_baby b ON b.mama_id = m.id
         LEFT JOIN outlet o ON o.id = m.outlet_id
         WHERE m.recycle=0 AND b.recycle=0 AND b.is_delivered != 2
-          AND b.edd IS NOT NULL AND b.edd != '0000-00-00'
+          AND b.edd IS NOT NULL AND b.edd > '1000-01-01'
           AND DATEDIFF(b.edd, CURDATE()) <= ?
           AND DATEDIFF(b.edd, DATE(m.timestamp)) >= ?
         ORDER BY b.edd DESC
@@ -124,14 +124,19 @@ $stmt->close();
 
 // Load blast log for this campaign – all dates, keep the latest sent record per mama+baby
 $blast_log = array();
+// wa_op = operator of the latest sent row (ONLY_FULL_GROUP_BY-safe, instead of picking an arbitrary row's wa_op)
 $bl = $conn->query("
-    SELECT bl.mama_id, bl.baby_id, MAX(bl.wa_sent) AS wa_sent, bl.wa_op,
-           MAX(bl.wa_datetime) AS wa_datetime,
+    SELECT x.mama_id, x.baby_id, x.wa_sent, x.wa_op, x.wa_datetime,
            s.nama_staff AS op_name
-    FROM mamabe_blast_log bl
-    LEFT JOIN staff s ON s.id = bl.wa_op
-    WHERE bl.campaign_id = $campaign_id
-    GROUP BY bl.mama_id, bl.baby_id
+    FROM (
+        SELECT bl.mama_id, bl.baby_id, MAX(bl.wa_sent) AS wa_sent,
+               SUBSTRING_INDEX(GROUP_CONCAT(bl.wa_op ORDER BY bl.wa_sent DESC, bl.wa_datetime DESC), ',', 1) AS wa_op,
+               MAX(bl.wa_datetime) AS wa_datetime
+        FROM mamabe_blast_log bl
+        WHERE bl.campaign_id = $campaign_id
+        GROUP BY bl.mama_id, bl.baby_id
+    ) x
+    LEFT JOIN staff s ON s.id = x.wa_op
 ");
 if ($bl) {
     while ($b = $bl->fetch_assoc()) {

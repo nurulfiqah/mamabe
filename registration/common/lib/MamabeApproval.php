@@ -136,10 +136,14 @@ function mamabeApproveSubmission(mysqli $conn, $id, $actorStaffId) {
     try {
         // Oldest unassigned voucher of the matching type - recycle = 0 is the single source of truth for "still in
         // stock". FOR UPDATE so two approvals at the same moment (two staff, or staff + the AI worker) can't both
-        // grab the same voucher.
+        // grab the same voucher. The NOT EXISTS guards skip a voucher that is still recycle = 0 but already linked to
+        // a baby/submission (e.g. recycle reset by hand) - it would otherwise hit idx_mama_voucher_unique and block
+        // every approval behind it.
         $stmt = $conn->prepare(
             "SELECT v.id, v.voucher_code FROM mamabe_voucher v
               WHERE v.type = ? AND v.recycle = 0
+                AND NOT EXISTS (SELECT 1 FROM mamabe_baby b WHERE b.mama_voucher_id = v.id OR b.baby_voucher_id = v.id)
+                AND NOT EXISTS (SELECT 1 FROM mamabe_submission s WHERE s.voucher_id = v.id)
               ORDER BY v.id LIMIT 1 FOR UPDATE"
         );
         $stmt->bind_param('i', $voucherType);

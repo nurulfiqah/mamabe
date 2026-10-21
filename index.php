@@ -50,7 +50,7 @@ $upcoming_edd = $conn->query("
     JOIN mamabe_mama m ON b.mama_id = m.id
     WHERE b.recycle=0 AND m.recycle=0
       AND b.is_delivered=0
-      AND b.edd IS NOT NULL AND b.edd != '0000-00-00'
+      AND b.edd IS NOT NULL AND b.edd > '1000-01-01'
       AND b.edd >= CURDATE()
       AND b.edd <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
     ORDER BY b.edd ASC
@@ -67,19 +67,19 @@ if ($campaigns_r) {
             $cr = $conn->query("SELECT COUNT(DISTINCT b.mama_id) AS cnt FROM mamabe_baby b
                 JOIN mamabe_mama m ON b.mama_id=m.id
                 WHERE m.recycle=0 AND b.recycle=0 AND b.is_delivered!=2
-                  AND b.lmp IS NOT NULL AND b.lmp!='0000-00-00'
+                  AND b.lmp IS NOT NULL AND b.lmp > '1000-01-01'
                   AND DATEDIFF(CURDATE(),b.lmp)=$dur");
         } elseif ($dt == 2) {
             $cr = $conn->query("SELECT COUNT(DISTINCT b.mama_id) AS cnt FROM mamabe_baby b
                 JOIN mamabe_mama m ON b.mama_id=m.id
                 WHERE m.recycle=0 AND b.recycle=0 AND b.is_delivered=1
-                  AND b.dob IS NOT NULL AND b.dob!='0000-00-00'
+                  AND b.dob IS NOT NULL AND b.dob > '1000-01-01'
                   AND DATEDIFF(CURDATE(),b.dob)=$dur");
         } else {
             $cr = $conn->query("SELECT COUNT(DISTINCT b.mama_id) AS cnt FROM mamabe_baby b
                 JOIN mamabe_mama m ON b.mama_id=m.id
                 WHERE m.recycle=0 AND b.recycle=0 AND b.is_delivered!=2
-                  AND b.edd IS NOT NULL AND b.edd!='0000-00-00'
+                  AND b.edd IS NOT NULL AND b.edd > '1000-01-01'
                   AND DATEDIFF(b.edd,CURDATE())=$dur");
         }
         if ($cr) { $row = $cr->fetch_assoc(); $blast_today += (int)$row['cnt']; }

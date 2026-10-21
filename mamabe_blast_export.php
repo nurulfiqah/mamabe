@@ -58,7 +58,7 @@ if ($date_type == 1) {
             ON bl.campaign_id = $campaign_id AND bl.mama_id = m.id
             AND bl.baby_id = b.id AND bl.blast_date = '$blast_date'
         WHERE m.recycle=0 AND b.recycle=0 AND b.is_delivered != 2
-          AND b.lmp IS NOT NULL AND b.lmp != '0000-00-00'
+          AND b.lmp IS NOT NULL AND b.lmp > '1000-01-01'
           AND DATEDIFF('$blast_date', b.lmp) >= $duration
           AND DATEDIFF(DATE(m.timestamp), b.lmp) <= $duration
           AND (bl.wa_sent IS NULL OR bl.wa_sent = 0)
@@ -75,7 +75,7 @@ if ($date_type == 1) {
             ON bl.campaign_id = $campaign_id AND bl.mama_id = m.id
             AND bl.baby_id = b.id AND bl.blast_date = '$blast_date'
         WHERE m.recycle=0 AND b.recycle=0 AND b.is_delivered=1
-          AND b.dob IS NOT NULL AND b.dob != '0000-00-00'
+          AND b.dob IS NOT NULL AND b.dob > '1000-01-01'
           AND DATEDIFF('$blast_date', b.dob) >= $duration
           AND DATEDIFF(DATE(m.timestamp), b.dob) <= $duration
           AND (bl.wa_sent IS NULL OR bl.wa_sent = 0)
@@ -92,7 +92,7 @@ if ($date_type == 1) {
             ON bl.campaign_id = $campaign_id AND bl.mama_id = m.id
             AND bl.baby_id = b.id AND bl.blast_date = '$blast_date'
         WHERE m.recycle=0 AND b.recycle=0 AND b.is_delivered != 2
-          AND b.edd IS NOT NULL AND b.edd != '0000-00-00'
+          AND b.edd IS NOT NULL AND b.edd > '1000-01-01'
           AND DATEDIFF(b.edd, '$blast_date') <= $duration
           AND DATEDIFF(b.edd, DATE(m.timestamp)) >= $duration
           AND (bl.wa_sent IS NULL OR bl.wa_sent = 0)
