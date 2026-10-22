@@ -60,6 +60,22 @@
 .mamabe-reject-btn:hover { background: #dc3545; color: #fff; }
 .mamabe-approve-btn:disabled, .mamabe-reject-btn:disabled { opacity: .6; cursor: wait; }
 .mamabe-icon-btn { padding: 5px 7px; line-height: 0; }
+
+/* Delete confirmation box (index.php #delModal) - reuses the lightbox overlay */
+.mamabe-confirm-box { width: 440px; max-width: 95vw; }
+.mamabe-confirm-body { padding: 14px 16px 4px; text-align: left; }
+.mamabe-confirm-info { border-collapse: collapse; margin-bottom: 10px; }
+.mamabe-confirm-info td { padding: 3px 12px 3px 0; vertical-align: top; }
+.mamabe-confirm-info td:first-child { color: #888; white-space: nowrap; }
+.mamabe-confirm-list { margin: 0; padding-left: 18px; line-height: 1.5; font-size: 0.9em; color: #555; }
+.mamabe-confirm-list li { margin-bottom: 4px; }
+.mamabe-confirm-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--alpro-border-soft, #e3e8ee); }
+.mamabe-danger-btn {
+    padding: 7px 16px; font-size: 0.95em; font-weight: bold; border-radius: 5px; cursor: pointer;
+    color: #fff; background: #dc3545; border: 1px solid #dc3545;
+}
+.mamabe-danger-btn:hover { background: #bb2d3b; border-color: #bb2d3b; }
+.mamabe-danger-btn:disabled { opacity: .6; cursor: wait; }
 .mamabe-icon-btn svg { vertical-align: middle; }
 .mamabe-doc-label + .mamabe-thumb { margin-bottom: 8px; }
 .mamabe-address { line-height: 1.5; max-width: 260px; margin: 2px 0 4px; }

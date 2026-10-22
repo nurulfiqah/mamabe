@@ -173,21 +173,53 @@
             .catch(function () { alert('Could not reach the server.'); btn.disabled = false; btn.textContent = 'Reject'; });
     }
 
-    /** Delete the whole registration (ajax_delete.php, Admin only) - confirmed first since it cannot be undone. */
-    function del(btn) {
-        if (!confirm('Delete this whole registration (mother and all babies in it)?\n\nThis cannot be undone. New mama/baby records it created will also be hidden from the Mama List. An existing customer\'s own record is never touched.')) return;
+    /** Delete the whole registration (ajax_delete.php, Admin only) - opens #delModal showing which registration it is;
+     *  only "Yes, delete" there actually sends the request, since it cannot be undone. */
+    var delModal = document.getElementById('delModal');
+    var delConfirmBtn = document.getElementById('delConfirm');
+    var delEvents = {};   // first person's id -> event, for the modal's details
+    var delPendingId = null;
+
+    function openDelete(btn) {
+        var ev = delEvents[btn.getAttribute('data-delete')];
+        if (!ev || !delModal) return;
+        delPendingId = btn.getAttribute('data-delete');
+        document.getElementById('delInfoDate').textContent = String(ev.created_at).slice(0, 16);
+        document.getElementById('delInfoType').textContent = ev.type_label;
+        document.getElementById('delInfoNames').innerHTML = ev.people.map(function (p) {
+            return '<div>' + esc(p.name) + ' <span class="mamabe-muted">(' + esc(p.who) + ')</span></div>';
+        }).join('');
+        delConfirmBtn.disabled = false;
+        delConfirmBtn.textContent = 'Yes, delete';
+        delModal.hidden = false;
+        document.getElementById('delCancel').focus();
+    }
+
+    function closeDelete() { if (delModal) delModal.hidden = true; delPendingId = null; }
+
+    function confirmDelete() {
+        if (delPendingId === null) return;
         var csrf = document.querySelector('input[name="csrf_token"]');
         var body = new FormData();
-        body.append('id', btn.getAttribute('data-delete'));
+        body.append('id', delPendingId);
         body.append('csrf_token', csrf ? csrf.value : '');
-        btn.disabled = true;
+        delConfirmBtn.disabled = true;
+        delConfirmBtn.textContent = 'Deleting…';
         fetch('ajax_delete.php', { method: 'POST', body: body, credentials: 'same-origin' })
             .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Your session may have expired - reload the page.' }; }); })
             .then(function (d) {
-                if (!d.ok) { alert(d.error || 'Could not delete.'); btn.disabled = false; return; }
+                closeDelete();
+                if (!d.ok) alert(d.error || 'Could not delete.');
                 load(true);
             })
-            .catch(function () { alert('Could not reach the server.'); btn.disabled = false; });
+            .catch(function () { closeDelete(); alert('Could not reach the server.'); });
+    }
+
+    if (delModal) {
+        delConfirmBtn.addEventListener('click', confirmDelete);
+        document.getElementById('delCancel').addEventListener('click', closeDelete);
+        delModal.addEventListener('click', function (e) { if (e.target === delModal) closeDelete(); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !delModal.hidden) closeDelete(); });
     }
 
     function showMessage(text) {
@@ -240,6 +272,7 @@
                  + '<td>' + approveCell(p) + '</td>';
             // Action column (Admin only): one Delete per registration event, spanning all its people.
             if (canDelete && i === 0) {
+                delEvents[p.id] = ev;
                 rows += '<td rowspan="' + ev.people.length + '" class="mamabe-col-action">'
                      + (ev.has_voucher
                         ? '<span class="mamabe-muted mamabe-small" title="A voucher was assigned - cannot be deleted">&ndash;</span>'
@@ -255,6 +288,7 @@
         page = data.page;
         detailUrl = data.detail_url || '';
         canDelete = !!data.can_delete;
+        delEvents = {};
         count.textContent = '(' + data.total + ' registration' + (data.total === 1 ? '' : 's') + ')';
         if (!data.events.length) { showMessage('No submissions found.'); return; }
 
@@ -295,7 +329,7 @@
         var rj = e.target.closest('[data-reject]');
         if (rj) { reject(rj); return; }
         var dl = e.target.closest('[data-delete]');
-        if (dl) { del(dl); return; }
+        if (dl) { openDelete(dl); return; }
         var img = e.target.closest('.mamabe-thumb');
         if (!img) return;
         modalImg.src = img.getAttribute('data-src');

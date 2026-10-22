@@ -79,4 +79,31 @@ $canDelete  = mamabe_can_delete(isset($mamab_autho) ? $mamab_autho : 0);   // Ac
     </div>
 </div>
 
+<?php if ($canDelete): ?>
+<!-- delete confirmation (Admin only) -->
+<div class="mamabe-lightbox" id="delModal" hidden>
+    <div class="mamabe-lightbox-box mamabe-confirm-box" role="dialog" aria-modal="true" aria-labelledby="delModalTitle">
+        <div class="mamabe-lightbox-head">
+            <b id="delModalTitle">Delete registration?</b>
+        </div>
+        <div class="mamabe-confirm-body">
+            <table class="mamabe-confirm-info">
+                <tr><td>Submitted</td><td id="delInfoDate"></td></tr>
+                <tr><td>Type</td><td id="delInfoType"></td></tr>
+                <tr><td>Name(s)</td><td id="delInfoNames"></td></tr>
+            </table>
+            <ul class="mamabe-confirm-list">
+                <li>The registration and its uploaded photos will be <b>permanently deleted</b> &ndash; this cannot be undone.</li>
+                <li>New mama/baby records it created will be hidden from the Mama List.</li>
+                <li>An existing customer's own record is never touched. NAS copies are kept.</li>
+            </ul>
+        </div>
+        <div class="mamabe-confirm-foot">
+            <button type="button" id="delCancel" class="alpro-btn alpro-btn-grey">Cancel</button>
+            <button type="button" id="delConfirm" class="mamabe-danger-btn">Yes, delete</button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <?php require_once(dirname(__FILE__) . '/footer.php'); ?>
