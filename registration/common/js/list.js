@@ -10,8 +10,12 @@
     var fQ = document.getElementById('fQ');
     var modal = document.getElementById('imgModal');
     var modalImg = document.getElementById('imgModalImg');
-    var COLS = 7;
+    var COLS = document.querySelectorAll('.mamabe-list thead th').length;   // 8 with the Admin-only Action column
     var detailUrl = '';
+    var canDelete = false;
+    var TRASH_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'
+        + '<path d="M10 11v6"/><path d="M14 11v6"/></svg>';
     var page = 1;
 
     function esc(s) {
@@ -169,6 +173,23 @@
             .catch(function () { alert('Could not reach the server.'); btn.disabled = false; btn.textContent = 'Reject'; });
     }
 
+    /** Delete the whole registration (ajax_delete.php, Admin only) - confirmed first since it cannot be undone. */
+    function del(btn) {
+        if (!confirm('Delete this whole registration (mother and all babies in it)?\n\nThis cannot be undone. New mama/baby records it created will also be hidden from the Mama List. An existing customer\'s own record is never touched.')) return;
+        var csrf = document.querySelector('input[name="csrf_token"]');
+        var body = new FormData();
+        body.append('id', btn.getAttribute('data-delete'));
+        body.append('csrf_token', csrf ? csrf.value : '');
+        btn.disabled = true;
+        fetch('ajax_delete.php', { method: 'POST', body: body, credentials: 'same-origin' })
+            .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Your session may have expired - reload the page.' }; }); })
+            .then(function (d) {
+                if (!d.ok) { alert(d.error || 'Could not delete.'); btn.disabled = false; return; }
+                load(true);
+            })
+            .catch(function () { alert('Could not reach the server.'); btn.disabled = false; });
+    }
+
     function showMessage(text) {
         tbody.innerHTML = '<tr><td colspan="' + COLS + '" class="alpro-center alpro-muted">' + esc(text) + '</td></tr>';
         pager.innerHTML = '';
@@ -216,8 +237,16 @@
                  + '<td>' + attachmentCell(p) + '</td>'
                  + '<td>' + extractedCell(p) + '</td>'
                  + '<td>' + resultCell(p) + '</td>'
-                 + '<td>' + approveCell(p) + '</td>'
-                 + '</tr>';
+                 + '<td>' + approveCell(p) + '</td>';
+            // Action column (Admin only): one Delete per registration event, spanning all its people.
+            if (canDelete && i === 0) {
+                rows += '<td rowspan="' + ev.people.length + '" class="mamabe-col-action">'
+                     + (ev.has_voucher
+                        ? '<span class="mamabe-muted mamabe-small" title="A voucher was assigned - cannot be deleted">&ndash;</span>'
+                        : '<button type="button" class="mamabe-reject-btn mamabe-icon-btn" data-delete="' + p.id + '" title="Delete this whole registration" aria-label="Delete">' + TRASH_ICON + '</button>')
+                     + '</td>';
+            }
+            rows += '</tr>';
         });
         return rows;
     }
@@ -225,6 +254,7 @@
     function render(data) {
         page = data.page;
         detailUrl = data.detail_url || '';
+        canDelete = !!data.can_delete;
         count.textContent = '(' + data.total + ' registration' + (data.total === 1 ? '' : 's') + ')';
         if (!data.events.length) { showMessage('No submissions found.'); return; }
 
@@ -264,6 +294,8 @@
         if (ap) { approve(ap); return; }
         var rj = e.target.closest('[data-reject]');
         if (rj) { reject(rj); return; }
+        var dl = e.target.closest('[data-delete]');
+        if (dl) { del(dl); return; }
         var img = e.target.closest('.mamabe-thumb');
         if (!img) return;
         modalImg.src = img.getAttribute('data-src');

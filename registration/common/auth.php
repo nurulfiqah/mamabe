@@ -16,6 +16,11 @@ function mamabe_is_admin($mamab_autho) {
     return in_array((string)$mamab_autho, array('1', '3'), true);
 }
 
+/** Delete a whole registration (ajax_delete.php): Admin (staff.mamab = 1) only - not Super Admin. */
+function mamabe_can_delete($mamab_autho) {
+    return (string)$mamab_autho === '1';
+}
+
 function mamabe_can_view_ai($mamab_autho, $department) {
     if ((int)$mamab_autho !== 1) return false;
     $ids = array_filter(array_map('intval', explode(',', (string)$department)));

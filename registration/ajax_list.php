@@ -188,8 +188,11 @@ foreach ($pageKeys as $bkey) {
     }
 
     $first = $rows[0];
+    $hasVoucher = false;
+    foreach ($rows as $r) { if ($r['voucher_id'] !== null) { $hasVoucher = true; break; } }
     $events[] = array(
         'bkey'             => $bkey,
+        'has_voucher'      => $hasVoucher,   // ajax_delete.php refuses these - a given-out voucher must stay traceable
         'created_at'       => $batches[$bkey]['created_at'],
         'type_label'       => $typeLabels[$batches[$bkey]['type']],
         'mama_id'          => $first['mama_id'] === null ? null : (int)$first['mama_id'],
@@ -208,6 +211,7 @@ foreach ($pageKeys as $bkey) {
 
 echo json_encode(array(
     'detail_url' => MAMABE_MAMA_DETAIL_URL,
+    'can_delete' => mamabe_can_delete(isset($mamab_autho) ? $mamab_autho : 0),
     'events'   => $events,
     'total'    => $total,
     'page'     => $page,

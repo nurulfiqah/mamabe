@@ -13,6 +13,7 @@ require_once(dirname(__FILE__) . '/common/lib/MamabeVerifier.php');
 require_once(dirname(__FILE__) . '/common/lib/Csrf.php');
 $page_js = MAMABE_BASE . 'common/js/list.js';
 $typeLabels = array(1 => 'Mother only', 2 => 'Baby only', 3 => 'Both');
+$canDelete  = mamabe_can_delete(isset($mamab_autho) ? $mamab_autho : 0);   // Action column (Delete) - Admin only
 ?>
 
 <fieldset>
@@ -46,16 +47,17 @@ $typeLabels = array(1 => 'Mother only', 2 => 'Baby only', 3 => 'Both');
         <thead>
             <tr>
                 <th class="mamabe-col-date">Submitted</th>
-                <th>Who</th>
+                <th class="mamabe-col-who">Who</th>
                 <th>Name</th>
                 <th class="mamabe-col-doc">Attachment</th>
                 <th>Extracted from image</th>
                 <th>Result</th>
-                <th>Approve / Reject</th>
+                <th class="mamabe-col-approve">Approve / Reject</th>
+                <?php if ($canDelete): ?><th class="mamabe-col-action">Action</th><?php endif; ?>
             </tr>
         </thead>
         <tbody id="mamabeRows">
-            <tr><td colspan="7" class="alpro-center alpro-muted">Loading&hellip;</td></tr>
+            <tr><td colspan="<?php echo $canDelete ? 8 : 7; ?>" class="alpro-center alpro-muted">Loading&hellip;</td></tr>
         </tbody>
     </table>
     </div>
