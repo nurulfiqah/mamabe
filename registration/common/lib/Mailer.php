@@ -70,6 +70,14 @@ function mamabeLogoUrl() {
 }
 
 /**
+ * Absolute URL to a fixed email header banner (public_assets/email_banner_<name>.png - 'approved' or 'rejected'),
+ * shown in place of the plain Alpro logo. Same fixed-host reasoning as mamabeLogoUrl().
+ */
+function mamabeEmailBannerUrl($name) {
+    return 'https://' . MAMABE_PUBLIC_HOST . '/odb/mamabe/registration/public_assets/email_banner_' . $name . '.png';
+}
+
+/**
  * Absolute URL to the admin-uploaded "How to redeem your voucher" guide image (settings.php's Redeem Voucher
  * Guide Image, same file the public form's success screen shows via api/redeem_guide.php), or '' when no image
  * is configured - callers then simply leave it out of the email, same as the public form hides that section.
@@ -100,14 +108,19 @@ function mamabeRedeemGuideBlock(mysqli $conn) {
  * registration form, common/mamabe_api/css/style.css's --mamabe-teal) rather than a generic solid colour band.
  * $accentColor only tints the heading text and the top border - lets a specific email (e.g. a rejection notice)
  * use a warning colour for that one line while the overall branding (logo, borders, footer) stays consistent.
+ * $bannerUrl (optional, see mamabeEmailBannerUrl()) replaces the small logo with a full-width header banner.
  */
-function mamabeEmailShell($headerTitle, $innerHtml, $accentColor = '#1bb8d4') {
-    $logo = mamabeLogoUrl();
+function mamabeEmailShell($headerTitle, $innerHtml, $accentColor = '#1bb8d4', $bannerUrl = '') {
+    $header = ($bannerUrl !== '')
+        ? "<div style=\"background: #ffffff; line-height: 0; border-bottom: 3px solid {$accentColor};\">
+            <img src=\"" . htmlspecialchars($bannerUrl) . "\" alt=\"Alpro MamaBe\" width=\"600\" style=\"width: 100%; max-width: 600px; height: auto; display: block;\">
+        </div>"
+        : "<div style=\"background: #ffffff; padding: 20px; text-align: center; border-bottom: 3px solid {$accentColor};\">
+            <img src=\"" . mamabeLogoUrl() . "\" alt=\"Alpro\" style=\"height: 38px; display: inline-block;\">
+        </div>";
     return "
     <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; border: 1px solid #e3e8ee; border-radius: 8px; overflow: hidden;\">
-        <div style=\"background: #ffffff; padding: 20px; text-align: center; border-bottom: 3px solid {$accentColor};\">
-            <img src=\"{$logo}\" alt=\"Alpro\" style=\"height: 38px; display: inline-block;\">
-        </div>
+        {$header}
         <div style=\"background-color: #ffffff; padding: 24px;\">
             <h2 style=\"margin: 0 0 16px; font-size: 18px; color: {$accentColor};\">" . htmlspecialchars($headerTitle) . "</h2>
             {$innerHtml}
@@ -341,7 +354,7 @@ function sendMamabeRejectionEmail(mysqli $conn, $toEmail, $toName, $submissionId
         $toEmail,
         $toName,
         $tpl['subject'],
-        mamabeEmailShell($tpl['header_title'], $innerHtml, $tpl['accent_color']),
+        mamabeEmailShell($tpl['header_title'], $innerHtml, $tpl['accent_color'], mamabeEmailBannerUrl('rejected')),
         $message,
         $submissionId
     );
@@ -353,22 +366,35 @@ function sendMamabeRejectionEmail(mysqli $conn, $toEmail, $toName, $submissionId
  */
 function sendMamabeApprovalEmail(mysqli $conn, $toEmail, $toName, $voucherCode, $submissionId) {
     $tpl     = mamabeGetEmailTemplate($conn, 'approval');
-    $vars    = array('name' => $toName, 'voucher_code' => $voucherCode);
-    $message = mamabeFillPlaceholders($tpl['body'], $vars);
+    $message = mamabeFillPlaceholders($tpl['body'], array('name' => $toName));
 
-    // The voucher-code callout is fixed design, not admin-editable - it must always be present and correct.
-    $voucherBox = '<div style="background: #e8fff5; border-left: 4px solid ' . $tpl['accent_color'] . '; border-radius: 4px; padding: 14px 16px; margin: 16px 0;">'
-        . '<strong>Your voucher code</strong><br><span style="font-size: 20px; font-weight: bold; letter-spacing: 1px;">' . htmlspecialchars($voucherCode) . '</span>'
-        . '</div>';
-    $innerHtml = '<p>' . mamabeTextToHtml($message) . '</p>' . $voucherBox . mamabeRedeemGuideBlock($conn);
+    // The voucher-code callout is fixed design, not admin-editable - it must always be present and correct. Staff
+    // can place it inside the message with {{voucher_code}} (also accepts {{VOUCHER CODE}} etc.); without that
+    // token it is appended after the message, labelled, as before.
+    $codeSpan = '<span style="font-size: 20px; font-weight: bold; letter-spacing: 1px;">' . htmlspecialchars($voucherCode) . '</span>';
+    $boxStart = '<div style="background: #e8fff5; border-left: 4px solid ' . $tpl['accent_color'] . '; border-radius: 4px; padding: 14px 16px; margin: 12px 0;">';
+    $parts    = preg_split('/\{\{\s*voucher[\s_]*code\s*\}\}/i', $message);
 
-    $altBody = $message . "\n\nYour voucher code: {$voucherCode}";
+    if (count($parts) > 1) {
+        $innerHtml = '';
+        foreach ($parts as $i => $part) {
+            if ($i > 0) $innerHtml .= $boxStart . $codeSpan . '</div>';
+            $part = trim($part, "\r\n");
+            if ($part !== '') $innerHtml .= '<div>' . mamabeTextToHtml($part) . '</div>';
+        }
+        $altBody = implode($voucherCode, $parts);
+    } else {
+        $innerHtml = '<p>' . mamabeTextToHtml($message) . '</p>'
+            . $boxStart . '<strong>Your voucher code</strong><br>' . $codeSpan . '</div>';
+        $altBody = $message . "\n\nYour voucher code: {$voucherCode}";
+    }
+    $innerHtml .= mamabeRedeemGuideBlock($conn);
 
     return dispatchMamabeEmail(
         $toEmail,
         $toName,
         $tpl['subject'],
-        mamabeEmailShell($tpl['header_title'], $innerHtml, $tpl['accent_color']),
+        mamabeEmailShell($tpl['header_title'], $innerHtml, $tpl['accent_color'], mamabeEmailBannerUrl('approved')),
         $altBody,
         $submissionId
     );
@@ -388,7 +414,7 @@ function sendMamabePhysicalApprovalEmail(mysqli $conn, $toEmail, $toName, $submi
         $toEmail,
         $toName,
         $tpl['subject'],
-        mamabeEmailShell($tpl['header_title'], $innerHtml, $tpl['accent_color']),
+        mamabeEmailShell($tpl['header_title'], $innerHtml, $tpl['accent_color'], mamabeEmailBannerUrl('approved')),
         $message,
         $submissionId
     );

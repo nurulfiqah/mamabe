@@ -15,7 +15,7 @@ mamabeEnsureEmailTemplateTable($conn);
 
 $templateLabels = array('approval' => 'Approve Email', 'approval_physical' => 'Approve Email (Physical Voucher)', 'rejection' => 'Reject Email');
 $templateHints  = array(
-    'approval'  => 'Sent when staff click Approve and a digital voucher is assigned. The voucher code is always shown to the customer automatically - no need to type it. You can use {{name}} to insert the customer\'s name.',
+    'approval'  => 'Sent when staff click Approve and a digital voucher is assigned. You can use {{name}} to insert the customer\'s name, and {{voucher_code}} to show the voucher code box at that spot. If {{voucher_code}} is not in the message, the code is still shown automatically at the end.',
     'approval_physical' => 'Sent instead of the above when she already has a physical voucher from registering at an outlet (no digital code to assign). You can use {{name}} to insert the customer\'s name.',
     'rejection' => 'Sent when staff click Reject on the submissions list. You can use {{name}} to insert the customer\'s name.',
 );
