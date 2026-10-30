@@ -11,6 +11,7 @@ require_once(dirname(__FILE__) . '/common/ajax_bootstrap.php');
 require_once(dirname(__FILE__) . '/common/config.php');
 require_once(dirname(__FILE__) . '/common/lib/MamabeVerifier.php');
 require_once(dirname(__FILE__) . '/common/lib/MamabeRecords.php');
+require_once(dirname(__FILE__) . '/common/lib/MamabeApproval.php');
 
 const MAMABE_TYPE_MOTHER = 1;   // pink only
 const MAMABE_TYPE_BABY   = 2;   // baby only
@@ -181,6 +182,10 @@ foreach ($pageKeys as $bkey) {
             // Approved but no voucher assigned - she already has a physical one from the outlet (mamabe_mama.receipt_no
             // for the mama side, mamabe_baby.baby_receipt_no for the baby side), see MamabeApproval.php.
             'approved_no_voucher' => $r['approved_at'] !== null && $r['voucher_id'] === null,
+            // ...or because she is Alpro staff, who are not eligible for an online voucher (MamabeApproval.php).
+            'approved_staff'   => $r['approved_at'] !== null && $r['voucher_id'] === null && mamabeIsStaff($conn, $r['ic'], $r['phone']),
+            // Still awaiting a decision and she is staff - the Approve popup warns that no voucher will be assigned.
+            'is_staff'         => $r['approved_at'] === null && $r['rejected_at'] === null && mamabeIsStaff($conn, $r['ic'], $r['phone']),
             // Same mama already sent this same kind of registration earlier (mother-only again, baby-only again) -
             // staff-only flag, the mama's own record is never duplicated (matched by IC/phone in MamabeRecords::save()).
             'repeat'           => (int)$r['earlier_same'] > 0,

@@ -21,6 +21,39 @@ require_once(dirname(__FILE__) . '/Mailer.php');
 const MAMABE_VOUCHER_TYPE_MAMA = 1;   // matches mamabe/voucher/index.php's MAMABE_TYPE_MAMA
 const MAMABE_VOUCHER_TYPE_BABY = 2;   // matches mamabe/voucher/index.php's MAMABE_TYPE_BABY
 
+/**
+ * True when this IC or phone belongs to an Alpro staff member - staff are not eligible for an online MamaBe voucher.
+ * IC is matched against staff.username (staff log in with their IC number), phone against staff.hp; both compared
+ * digits-only, phone ignoring the 0 / 60 prefix. Only active staff rows (recycle = 0) count.
+ */
+function mamabeIsStaff(mysqli $conn, $ic, $phone) {
+    $ic = preg_replace('/\D/', '', (string)$ic);
+    $phoneCore = preg_replace('/\D/', '', (string)$phone);
+    if (strpos($phoneCore, '60') === 0) $phoneCore = substr($phoneCore, 2);
+    $phoneCore = ltrim($phoneCore, '0');
+
+    $hasIc    = strlen($ic) === 12;
+    $hasPhone = strlen($phoneCore) >= 8;
+    if (!$hasIc && !$hasPhone) return false;
+
+    $icVal  = $hasIc ? $ic : '-';
+    $p0     = $hasPhone ? '0' . $phoneCore : '-';
+    $p60    = $hasPhone ? '60' . $phoneCore : '-';
+    $hpExpr = "REPLACE(REPLACE(REPLACE(hp, '-', ''), ' ', ''), '+', '')";
+    $stmt = $conn->prepare(
+        "SELECT 1 FROM staff
+          WHERE recycle = 0
+            AND (REPLACE(username, '-', '') = ? OR $hpExpr = ? OR $hpExpr = ?)
+          LIMIT 1"
+    );
+    $stmt->bind_param('sss', $icVal, $p0, $p60);
+    $stmt->execute();
+    $stmt->store_result();
+    $isStaff = $stmt->num_rows > 0;
+    $stmt->close();
+    return $isStaff;
+}
+
 /** Self-migrating columns/indexes this flow needs on mamabe_submission/mamabe_baby - safe to call every time. */
 function mamabeEnsureApprovalSchema(mysqli $conn) {
     $_c = $conn->query("SHOW COLUMNS FROM mamabe_submission LIKE 'voucher_id'");
@@ -57,10 +90,10 @@ function mamabeEnsureApprovalSchema(mysqli $conn) {
 function mamabeApproveSubmission(mysqli $conn, $id, $actorStaffId) {
     mamabeEnsureApprovalSchema($conn);
 
-    $stmt = $conn->prepare("SELECT register_type, mama_id, baby_id, voucher_id, approved_at FROM mamabe_submission WHERE id = ?");
+    $stmt = $conn->prepare("SELECT register_type, mama_id, baby_id, voucher_id, approved_at, ic, phone FROM mamabe_submission WHERE id = ?");
     $stmt->bind_param('i', $id);
     $stmt->execute();
-    $stmt->bind_result($registerType, $mamaId, $babyId, $existingVoucherId, $existingApprovedAt);
+    $stmt->bind_result($registerType, $mamaId, $babyId, $existingVoucherId, $existingApprovedAt, $subIc, $subPhone);
     $found = $stmt->fetch();
     $stmt->close();
 
@@ -130,6 +163,19 @@ function mamabeApproveSubmission(mysqli $conn, $id, $actorStaffId) {
             }
         }
         return array('ok' => true, 'voucher_code' => null, 'already' => false, 'error' => null);
+    }
+
+    // Staff are not eligible for an online voucher - approval still goes through (row stops needing a decision)
+    // but no stock is touched and no email is sent. registration/index.php shows it as "Approved (staff - no voucher)".
+    if (mamabeIsStaff($conn, $subIc, $subPhone)) {
+        if ($existingApprovedAt === null) {
+            $now = date('Y-m-d H:i:s');
+            $stmt = $conn->prepare("UPDATE mamabe_submission SET approved_at = ?, approved_by = ? WHERE id = ?");
+            $stmt->bind_param('sii', $now, $actorStaffId, $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        return array('ok' => true, 'voucher_code' => null, 'already' => false, 'error' => null, 'staff' => true);
     }
 
     $conn->begin_transaction();

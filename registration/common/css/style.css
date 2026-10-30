@@ -59,6 +59,10 @@
 .mamabe-reject-btn { color: #dc3545; background: #fff; border: 1px solid #dc3545; }
 .mamabe-reject-btn:hover { background: #dc3545; color: #fff; }
 .mamabe-approve-btn:disabled, .mamabe-reject-btn:disabled { opacity: .6; cursor: wait; }
+.mamabe-decide { display: flex; justify-content: center; gap: 10px; margin-top: 6px; }
+.mamabe-decide .mamabe-approve-btn, .mamabe-decide .mamabe-reject-btn {
+    padding: 4px 12px; font-size: 0.82em; font-weight: 600; border-radius: 4px; line-height: 1.4;
+}
 .mamabe-icon-btn { padding: 5px 7px; line-height: 0; }
 
 /* Delete confirmation box (index.php #delModal) - reuses the lightbox overlay */
@@ -84,6 +88,7 @@
 .mamabe-tag { display: inline-block; margin-top: 3px; font-size: 0.75em; padding: 1px 7px; border-radius: 3px; background: #f1f3f5; color: #6c757d; border: 1px solid #dee2e6; white-space: nowrap; }
 .mamabe-tag-ok { background: #e8fff1; color: #128C7E; border-color: #b7f2ce; }
 .mamabe-tag-new { background: #e8f8fb; color: #0e8fa6; border-color: #b9dde6; }
+.mamabe-tag-staff { margin-top: 0; background: #fff4e5; color: #b45309; border-color: #fcd9a8; font-weight: bold; }
 .mamabe-small { font-size: 0.8em; margin-top: 4px; }
 
 /* Status pill - never .badge (page.css turns it into a notification dot) */

@@ -124,6 +124,9 @@
         if (p.voucher_code) {
             return '<span class="mamabe-ok" title="Voucher assigned">&#10004; ' + esc(p.voucher_code) + '</span>';
         }
+        if (p.approved_staff) {
+            return '<span class="mamabe-ok" title="Alpro staff - not eligible for an online voucher">&#10004; Approved (staff - no voucher)</span>';
+        }
         if (p.approved_no_voucher) {
             return '<span class="mamabe-ok" title="Already has a physical voucher from the outlet - no digital code assigned">&#10004; Approved (physical voucher)</span>';
         }
@@ -133,13 +136,19 @@
         if (p.status !== 3) {
             return dash();
         }
-        return '<button type="button" class="mamabe-approve-btn" data-approve="' + p.id + '">Approve</button>'
-             + ' <button type="button" class="mamabe-reject-btn" data-reject="' + p.id + '">Reject</button>';
+        return (p.is_staff ? '<div style="text-align:center;"><span class="mamabe-tag mamabe-tag-staff" title="Alpro staff - not eligible for an online voucher">STAFF &middot; no voucher</span></div>' : '')
+             + '<div class="mamabe-decide">'
+             + '<button type="button" class="mamabe-approve-btn" data-approve="' + p.id + '"' + (p.is_staff ? ' data-staff="1"' : '') + '>Approve</button>'
+             + '<button type="button" class="mamabe-reject-btn" data-reject="' + p.id + '">Reject</button>'
+             + '</div>';
     }
 
     /** Assign a voucher to one person (ajax_approve.php) - confirmed first since it assigns real voucher stock. */
     function approve(btn) {
-        if (!confirm('Approve this? A voucher will be assigned to them from stock, unless they already have a physical one from an outlet.')) return;
+        var msg = btn.getAttribute('data-staff')
+            ? 'This person is Alpro staff. Staff do not get an online voucher.\n\nApprove without a voucher?'
+            : 'Approve this? A voucher will be assigned to them from stock, unless they already have a physical one from an outlet.';
+        if (!confirm(msg)) return;
         var csrf = document.querySelector('input[name="csrf_token"]');
         var body = new FormData();
         body.append('id', btn.getAttribute('data-approve'));
