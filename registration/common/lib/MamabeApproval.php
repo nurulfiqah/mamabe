@@ -54,6 +54,28 @@ function mamabeIsStaff(mysqli $conn, $ic, $phone) {
     return $isStaff;
 }
 
+/**
+ * Who the approval email goes to: the email/name typed on THIS submission first (what she just entered on the form),
+ * falling back to her mamabe_mama record only when the submission has none. Her mama record's email is never
+ * overwritten once set (MamabeRecords::save()), so using it first would send to an old address.
+ * Returns array(email, name) - email '' when there is nowhere to send.
+ */
+function mamabeApprovalRecipient(mysqli $conn, $mamaId, $subEmail, $subName) {
+    $email = trim((string)$subEmail);
+    $name  = trim((string)$subName);
+    if (($email === '' || $name === '') && $mamaId !== null) {
+        $stmt = $conn->prepare("SELECT mama_name, email FROM mamabe_mama WHERE id = ?");
+        $stmt->bind_param('i', $mamaId);
+        $stmt->execute();
+        $stmt->bind_result($mamaName, $mamaEmail);
+        $stmt->fetch();
+        $stmt->close();
+        if ($email === '') $email = trim((string)$mamaEmail);
+        if ($name === '')  $name  = (string)$mamaName;
+    }
+    return array($email, $name);
+}
+
 /** Self-migrating columns/indexes this flow needs on mamabe_submission/mamabe_baby - safe to call every time. */
 function mamabeEnsureApprovalSchema(mysqli $conn) {
     $_c = $conn->query("SHOW COLUMNS FROM mamabe_submission LIKE 'voucher_id'");
@@ -90,10 +112,10 @@ function mamabeEnsureApprovalSchema(mysqli $conn) {
 function mamabeApproveSubmission(mysqli $conn, $id, $actorStaffId) {
     mamabeEnsureApprovalSchema($conn);
 
-    $stmt = $conn->prepare("SELECT register_type, mama_id, baby_id, voucher_id, approved_at, ic, phone FROM mamabe_submission WHERE id = ?");
+    $stmt = $conn->prepare("SELECT register_type, mama_id, baby_id, voucher_id, approved_at, ic, phone, email, mother_name FROM mamabe_submission WHERE id = ?");
     $stmt->bind_param('i', $id);
     $stmt->execute();
-    $stmt->bind_result($registerType, $mamaId, $babyId, $existingVoucherId, $existingApprovedAt, $subIc, $subPhone);
+    $stmt->bind_result($registerType, $mamaId, $babyId, $existingVoucherId, $existingApprovedAt, $subIc, $subPhone, $subEmail, $subName);
     $found = $stmt->fetch();
     $stmt->close();
 
@@ -150,23 +172,17 @@ function mamabeApproveSubmission(mysqli $conn, $id, $actorStaffId) {
 
             // Best-effort - same as the normal approval email, just without a voucher code to show. Only fires
             // once (guarded by $existingApprovedAt above), not on every re-check of an already-approved row.
-            if ($mamaId !== null) {
-                $stmt = $conn->prepare("SELECT mama_name, email FROM mamabe_mama WHERE id = ?");
-                $stmt->bind_param('i', $mamaId);
-                $stmt->execute();
-                $stmt->bind_result($mamaName, $mamaEmail);
-                $stmt->fetch();
-                $stmt->close();
-                if (!empty($mamaEmail)) {
-                    sendMamabePhysicalApprovalEmail($conn, $mamaEmail, $mamaName, $id);
-                }
+            list($mamaEmail, $mamaName) = mamabeApprovalRecipient($conn, $mamaId, $subEmail, $subName);
+            if ($mamaEmail !== '') {
+                sendMamabePhysicalApprovalEmail($conn, $mamaEmail, $mamaName, $id);
             }
         }
         return array('ok' => true, 'voucher_code' => null, 'already' => false, 'error' => null);
     }
 
     // Staff are not eligible for an online voucher - approval still goes through (row stops needing a decision)
-    // but no stock is touched and no email is sent. registration/index.php shows it as "Approved (staff - no voucher)".
+    // but no stock is touched; she gets the staff version of the approval email (no code).
+    // registration/index.php shows it as "Approved (staff - no voucher)".
     if (mamabeIsStaff($conn, $subIc, $subPhone)) {
         if ($existingApprovedAt === null) {
             $now = date('Y-m-d H:i:s');
@@ -174,6 +190,11 @@ function mamabeApproveSubmission(mysqli $conn, $id, $actorStaffId) {
             $stmt->bind_param('sii', $now, $actorStaffId, $id);
             $stmt->execute();
             $stmt->close();
+
+            list($mamaEmail, $mamaName) = mamabeApprovalRecipient($conn, $mamaId, $subEmail, $subName);
+            if ($mamaEmail !== '') {
+                sendMamabeStaffApprovalEmail($conn, $mamaEmail, $mamaName, $id);
+            }
         }
         return array('ok' => true, 'voucher_code' => null, 'already' => false, 'error' => null, 'staff' => true);
     }
@@ -225,17 +246,10 @@ function mamabeApproveSubmission(mysqli $conn, $id, $actorStaffId) {
         $conn->commit();
 
         // Best-effort notification - a mail failure (or no email on file) must never undo the approval, which
-        // already committed above. Only mamas with an email on file (staff-added, not from the public form) get one.
-        if ($mamaId !== null) {
-            $stmt = $conn->prepare("SELECT mama_name, email FROM mamabe_mama WHERE id = ?");
-            $stmt->bind_param('i', $mamaId);
-            $stmt->execute();
-            $stmt->bind_result($mamaName, $mamaEmail);
-            $stmt->fetch();
-            $stmt->close();
-            if (!empty($mamaEmail)) {
-                sendMamabeApprovalEmail($conn, $mamaEmail, $mamaName, $voucherCode, $id);
-            }
+        // already committed above.
+        list($mamaEmail, $mamaName) = mamabeApprovalRecipient($conn, $mamaId, $subEmail, $subName);
+        if ($mamaEmail !== '') {
+            sendMamabeApprovalEmail($conn, $mamaEmail, $mamaName, $voucherCode, $id);
         }
 
         return array('ok' => true, 'voucher_code' => $voucherCode, 'already' => false, 'error' => null);

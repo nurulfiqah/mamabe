@@ -203,27 +203,12 @@ function _mamabeSmtpSend($host, $port, $user, $pass, $fromName, $toEmail, $toNam
     return array('ok' => true, 'error' => '');
 }
 
-/** True when running on a local dev host - mail is never actually sent while developing/testing. */
-function isMamabeLocalEnvironment() {
-    $serverName = isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : '';
-    $httpHost   = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
-
-    return in_array($serverName, array('localhost', '127.0.0.1'), true) ||
-        strpos($serverName, 'localhost') !== false ||
-        strpos($httpHost, 'localhost') !== false ||
-        strpos($httpHost, '127.0.0.1') !== false;
-}
-
 /**
- * Low-level sender shared by every mamabe notification email. Never throws - returns
+ * Low-level sender shared by every mamabe notification email. Sends from local and production alike, using whatever
+ * mailbox that machine's .env / mail_config.local.php points at. Never throws - returns
  * array('success' => bool, 'message' => string) and logs every attempt.
  */
 function dispatchMamabeEmail($toEmail, $toName, $subject, $htmlBody, $altBody, $refId) {
-    if (isMamabeLocalEnvironment()) {
-        mamabeLogMailOperation('dispatchMamabeEmail', 'Skipped - local environment', array('ref_id' => (int)$refId, 'to' => $toEmail, 'subject' => $subject), 'INFO');
-        return array('success' => false, 'message' => 'Mail sending is disabled in the local environment.');
-    }
-
     $cfg = mamabeGetMailConfig();
     if (empty($cfg['host']) || empty($cfg['username']) || empty($cfg['password'])) {
         error_log('Mamabe email skipped: mail is not configured (missing .env/mail_config.local.php values).');
@@ -296,6 +281,17 @@ const MAMABE_EMAIL_TEMPLATE_DEFAULTS = array(
         'accent_color' => '#128C7E',
         'body' => "Hi {{name}},\n\n"
             . "Great news - your MamaBe registration has been verified and approved! Since you already received your voucher at the outlet, no digital code is needed.\n\n"
+            . "Thank you for joining MamaBe!",
+    ),
+    // Sent instead of 'approval' when she is Alpro staff (matched by IC/phone - see MamabeApproval.php's
+    // mamabeIsStaff()) - approved, but staff are not eligible for an online voucher, so no code to show.
+    'approval_staff' => array(
+        'subject'      => 'MamaBe Registration Approved',
+        'header_title' => 'MamaBe Registration Approved',
+        'accent_color' => '#128C7E',
+        'body' => "Hi {{name}},\n\n"
+            . "Your MamaBe registration has been verified and approved.\n\n"
+            . "As an Alpro staff member, you are not eligible for the online MamaBe voucher.\n\n"
             . "Thank you for joining MamaBe!",
     ),
 );
@@ -396,6 +392,26 @@ function sendMamabeApprovalEmail(mysqli $conn, $toEmail, $toName, $voucherCode, 
         $tpl['subject'],
         mamabeEmailShell($tpl['header_title'], $innerHtml, $tpl['accent_color'], mamabeEmailBannerUrl('approved')),
         $altBody,
+        $submissionId
+    );
+}
+
+/**
+ * Notify an Alpro staff member that her MamaBe website registration was approved - staff are not eligible for an
+ * online voucher, so no code is shown (see MamabeApproval.php's mamabeIsStaff() case).
+ * $submissionId is just for the mail log, same role as atem's $atemId.
+ */
+function sendMamabeStaffApprovalEmail(mysqli $conn, $toEmail, $toName, $submissionId) {
+    $tpl     = mamabeGetEmailTemplate($conn, 'approval_staff');
+    $message = mamabeFillPlaceholders($tpl['body'], array('name' => $toName));
+    $innerHtml = '<p>' . mamabeTextToHtml($message) . '</p>';
+
+    return dispatchMamabeEmail(
+        $toEmail,
+        $toName,
+        $tpl['subject'],
+        mamabeEmailShell($tpl['header_title'], $innerHtml, $tpl['accent_color'], mamabeEmailBannerUrl('approved')),
+        $message,
         $submissionId
     );
 }
