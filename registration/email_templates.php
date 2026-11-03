@@ -13,12 +13,12 @@ require_once(dirname(__FILE__) . '/common/lib/Mailer.php');
 
 mamabeEnsureEmailTemplateTable($conn);
 
-$templateLabels = array('approval' => 'Approve Email', 'approval_physical' => 'Approve Email (Physical Voucher)', 'approval_staff' => 'Approve Email (Staff - No Voucher)', 'rejection' => 'Reject Email');
+$templateLabels = array('approval' => 'Approve Email', 'approval_physical' => 'Approve Email (Physical Voucher)', 'rejection' => 'Reject Email', 'rejection_staff' => 'Reject Email (Staff - Auto Reject)');
 $templateHints  = array(
     'approval'  => 'Sent when staff click Approve and a digital voucher is assigned. You can use {{name}} to insert the customer\'s name, and {{voucher_code}} to show the voucher code box at that spot. If {{voucher_code}} is not in the message, the code is still shown automatically at the end.',
     'approval_physical' => 'Sent instead of the above when she already has a physical voucher from registering at an outlet (no digital code to assign). You can use {{name}} to insert the customer\'s name.',
-    'approval_staff' => 'Sent instead of the Approve Email when the person is Alpro staff (IC or phone matches a staff record) - staff are approved but do not get an online voucher. You can use {{name}} to insert the customer\'s name.',
     'rejection' => 'Sent when staff click Reject on the submissions list. You can use {{name}} to insert the customer\'s name.',
+    'rejection_staff' => 'Sent automatically when the person is Alpro staff (IC or phone matches a staff record) - staff registrations are rejected automatically, as staff are not eligible for an online voucher. You can use {{name}} to insert the customer\'s name.',
 );
 
 $msg = '';

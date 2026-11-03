@@ -76,6 +76,96 @@ function mamabeApprovalRecipient(mysqli $conn, $mamaId, $subEmail, $subName) {
     return array($email, $name);
 }
 
+/**
+ * Reject mamabe_submission.id $id - marks it rejected so it stops needing a decision, and ONLY for data this
+ * submission itself created (never an existing customer's pre-existing record) hides it from the MamaBe Mama List:
+ *   - a 'pink' (mother) row where mama_is_new = 1: soft-deletes the mamabe_mama row it created (recycle = 1).
+ *   - either row where baby_is_new = 1: soft-deletes the mamabe_baby row it created (recycle = 1).
+ * Cannot reject something already given a voucher. Emails her afterwards (best-effort): the normal rejection email,
+ * or the staff version when $isStaff. Used by ajax_reject.php (staff click) and for the automatic staff rejection
+ * (worker.php / mamabeApproveSubmission()) - $actorStaffId NULL = system, not a person.
+ * Returns array('ok' => bool, 'already' => bool, 'error' => string|null).
+ */
+function mamabeRejectSubmission(mysqli $conn, $id, $actorStaffId, $isStaff = false) {
+    mamabeEnsureApprovalSchema($conn);
+    $_c = $conn->query("SHOW COLUMNS FROM mamabe_submission LIKE 'baby_is_new'");
+    if ($_c && $_c->num_rows === 0) {
+        $conn->query("ALTER TABLE mamabe_submission ADD COLUMN baby_is_new TINYINT(1) NOT NULL DEFAULT 0 AFTER mama_is_new");
+    }
+    $_c = $conn->query("SHOW COLUMNS FROM mamabe_submission LIKE 'rejected_at'");
+    if ($_c && $_c->num_rows === 0) {
+        $conn->query("ALTER TABLE mamabe_submission ADD COLUMN rejected_at DATETIME NULL, ADD COLUMN rejected_by INT NULL");
+    }
+
+    $stmt = $conn->prepare("SELECT register_type, mama_id, mama_is_new, baby_id, baby_is_new, voucher_id, rejected_at, email, mother_name,
+                                   COALESCE(batch_id, id)
+                              FROM mamabe_submission WHERE id = ?");
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    $stmt->bind_result($registerType, $mamaId, $mamaIsNew, $babyId, $babyIsNew, $voucherId, $existingRejectedAt, $subEmail, $subName, $batchKey);
+    $found = $stmt->fetch();
+    $stmt->close();
+
+    if (!$found) return array('ok' => false, 'already' => false, 'error' => 'Submission not found.');
+    if ($existingRejectedAt !== null) return array('ok' => true, 'already' => true, 'error' => null);
+    if ($voucherId !== null) {
+        return array('ok' => false, 'already' => false, 'error' => 'This was already approved and given a voucher - it cannot be rejected.');
+    }
+
+    $conn->begin_transaction();
+    try {
+        $now = date('Y-m-d H:i:s');
+        $stmt = $conn->prepare("UPDATE mamabe_submission SET rejected_at = ?, rejected_by = ? WHERE id = ?");
+        $stmt->bind_param('sii', $now, $actorStaffId, $id);
+        if (!$stmt->execute()) throw new RuntimeException('mamabe_submission reject: ' . $stmt->error);
+        $stmt->close();
+
+        // Only ever hide data this submission itself created - never an existing customer's record.
+        if ((int)$babyIsNew === 1 && $babyId !== null) {
+            $stmt = $conn->prepare("UPDATE mamabe_baby SET recycle = 1 WHERE id = ?");
+            $stmt->bind_param('i', $babyId);
+            if (!$stmt->execute()) throw new RuntimeException('mamabe_baby reject: ' . $stmt->error);
+            $stmt->close();
+        }
+        if ($registerType === 'pink' && (int)$mamaIsNew === 1 && $mamaId !== null) {
+            $stmt = $conn->prepare("UPDATE mamabe_mama SET recycle = 1 WHERE id = ?");
+            $stmt->bind_param('i', $mamaId);
+            if (!$stmt->execute()) throw new RuntimeException('mamabe_mama reject: ' . $stmt->error);
+            $stmt->close();
+        }
+
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('mamabeRejectSubmission failed (submission id=' . (int)$id . '): ' . $e->getMessage());
+        return array('ok' => false, 'already' => false, 'error' => 'Could not reject. Please try again.');
+    }
+
+    // A staff "Both" registration is two rows (mother + baby) rejected one after the other - the staff email says the
+    // same thing for both, so only the first rejected row of the registration sends it.
+    $alreadyNotified = false;
+    if ($isStaff) {
+        $stmt = $conn->prepare("SELECT 1 FROM mamabe_submission
+                                 WHERE COALESCE(batch_id, id) = ? AND id <> ? AND rejected_at IS NOT NULL LIMIT 1");
+        $stmt->bind_param('ii', $batchKey, $id);
+        $stmt->execute();
+        $stmt->store_result();
+        $alreadyNotified = $stmt->num_rows > 0;
+        $stmt->close();
+    }
+
+    // Best-effort notification - a mail failure must never undo the reject, which already committed above.
+    list($mamaEmail, $mamaName) = mamabeApprovalRecipient($conn, $mamaId, $subEmail, $subName);
+    if ($mamaEmail !== '' && !$alreadyNotified) {
+        if ($isStaff) {
+            sendMamabeStaffRejectionEmail($conn, $mamaEmail, $mamaName, $id);
+        } else {
+            sendMamabeRejectionEmail($conn, $mamaEmail, $mamaName, $id);
+        }
+    }
+    return array('ok' => true, 'already' => false, 'error' => null);
+}
+
 /** Self-migrating columns/indexes this flow needs on mamabe_submission/mamabe_baby - safe to call every time. */
 function mamabeEnsureApprovalSchema(mysqli $conn) {
     $_c = $conn->query("SHOW COLUMNS FROM mamabe_submission LIKE 'voucher_id'");
@@ -180,23 +270,12 @@ function mamabeApproveSubmission(mysqli $conn, $id, $actorStaffId) {
         return array('ok' => true, 'voucher_code' => null, 'already' => false, 'error' => null);
     }
 
-    // Staff are not eligible for an online voucher - approval still goes through (row stops needing a decision)
-    // but no stock is touched; she gets the staff version of the approval email (no code).
-    // registration/index.php shows it as "Approved (staff - no voucher)".
-    if (mamabeIsStaff($conn, $subIc, $subPhone)) {
-        if ($existingApprovedAt === null) {
-            $now = date('Y-m-d H:i:s');
-            $stmt = $conn->prepare("UPDATE mamabe_submission SET approved_at = ?, approved_by = ? WHERE id = ?");
-            $stmt->bind_param('sii', $now, $actorStaffId, $id);
-            $stmt->execute();
-            $stmt->close();
-
-            list($mamaEmail, $mamaName) = mamabeApprovalRecipient($conn, $mamaId, $subEmail, $subName);
-            if ($mamaEmail !== '') {
-                sendMamabeStaffApprovalEmail($conn, $mamaEmail, $mamaName, $id);
-            }
-        }
-        return array('ok' => true, 'voucher_code' => null, 'already' => false, 'error' => null, 'staff' => true);
+    // Staff are not eligible for an online voucher - never approved, rejected automatically instead (with the staff
+    // version of the rejection email). worker.php normally does this right after the AI check; this catches a row
+    // approved by hand before that.
+    if ($existingApprovedAt === null && mamabeIsStaff($conn, $subIc, $subPhone)) {
+        $rej = mamabeRejectSubmission($conn, $id, $actorStaffId, true);
+        return array('ok' => $rej['ok'], 'voucher_code' => null, 'already' => false, 'error' => $rej['error'], 'staff' => true);
     }
 
     $conn->begin_transaction();

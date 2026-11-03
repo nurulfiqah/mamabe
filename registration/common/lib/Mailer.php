@@ -283,16 +283,16 @@ const MAMABE_EMAIL_TEMPLATE_DEFAULTS = array(
             . "Great news - your MamaBe registration has been verified and approved! Since you already received your voucher at the outlet, no digital code is needed.\n\n"
             . "Thank you for joining MamaBe!",
     ),
-    // Sent instead of 'approval' when she is Alpro staff (matched by IC/phone - see MamabeApproval.php's
-    // mamabeIsStaff()) - approved, but staff are not eligible for an online voucher, so no code to show.
-    'approval_staff' => array(
-        'subject'      => 'MamaBe Registration Approved',
-        'header_title' => 'MamaBe Registration Approved',
-        'accent_color' => '#128C7E',
+    // Sent instead of 'rejection' when she is Alpro staff (matched by IC/phone - see MamabeApproval.php's
+    // mamabeIsStaff()) - staff registrations are rejected automatically, as staff are not eligible for an online voucher.
+    'rejection_staff' => array(
+        'subject'      => 'MamaBe Registration - Not Eligible',
+        'header_title' => 'MamaBe Registration Not Eligible',
+        'accent_color' => '#c82333',
         'body' => "Hi {{name}},\n\n"
-            . "Your MamaBe registration has been verified and approved.\n\n"
-            . "As an Alpro staff member, you are not eligible for the online MamaBe voucher.\n\n"
-            . "Thank you for joining MamaBe!",
+            . "Thank you for registering for MamaBe.\n\n"
+            . "As an Alpro staff member, you are not eligible for the online MamaBe voucher, so this registration could not be approved.\n\n"
+            . "Thank you for your understanding.",
     ),
 );
 
@@ -397,12 +397,12 @@ function sendMamabeApprovalEmail(mysqli $conn, $toEmail, $toName, $voucherCode, 
 }
 
 /**
- * Notify an Alpro staff member that her MamaBe website registration was approved - staff are not eligible for an
- * online voucher, so no code is shown (see MamabeApproval.php's mamabeIsStaff() case).
+ * Notify an Alpro staff member that her MamaBe website registration was rejected automatically - staff are not
+ * eligible for an online voucher (see MamabeApproval.php's mamabeIsStaff()).
  * $submissionId is just for the mail log, same role as atem's $atemId.
  */
-function sendMamabeStaffApprovalEmail(mysqli $conn, $toEmail, $toName, $submissionId) {
-    $tpl     = mamabeGetEmailTemplate($conn, 'approval_staff');
+function sendMamabeStaffRejectionEmail(mysqli $conn, $toEmail, $toName, $submissionId) {
+    $tpl     = mamabeGetEmailTemplate($conn, 'rejection_staff');
     $message = mamabeFillPlaceholders($tpl['body'], array('name' => $toName));
     $innerHtml = '<p>' . mamabeTextToHtml($message) . '</p>';
 
@@ -410,7 +410,7 @@ function sendMamabeStaffApprovalEmail(mysqli $conn, $toEmail, $toName, $submissi
         $toEmail,
         $toName,
         $tpl['subject'],
-        mamabeEmailShell($tpl['header_title'], $innerHtml, $tpl['accent_color'], mamabeEmailBannerUrl('approved')),
+        mamabeEmailShell($tpl['header_title'], $innerHtml, $tpl['accent_color'], mamabeEmailBannerUrl('rejected')),
         $message,
         $submissionId
     );

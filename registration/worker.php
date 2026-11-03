@@ -59,9 +59,13 @@ for (;;) {
 
         // Proceed = the AI check passed cleanly - approve straight away, no staff click needed. approved_by is
         // NULL here (not a person) so registration/index.php can tell an auto-approval apart from a manual one.
-        $res = $conn->query("SELECT status FROM mamabe_submission WHERE id = " . (int)$row['id']);
-        $status = $res ? (int)$res->fetch_row()[0] : null;
-        if ($status === MamabeVerifier::STATUS_PROCEED) {
+        // Alpro staff are not eligible for an online voucher - rejected automatically, whatever the AI result.
+        $res = $conn->query("SELECT status, ic, phone FROM mamabe_submission WHERE id = " . (int)$row['id']);
+        $sub = $res ? $res->fetch_assoc() : null;
+        $status = $sub ? (int)$sub['status'] : null;
+        if ($sub && mamabeIsStaff($conn, $sub['ic'], $sub['phone'])) {
+            mamabeRejectSubmission($conn, $row['id'], null, true);
+        } elseif ($status === MamabeVerifier::STATUS_PROCEED) {
             mamabeApproveSubmission($conn, $row['id'], null);
         }
 
