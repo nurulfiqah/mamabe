@@ -50,13 +50,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === '') {
     }
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'add_source') {
     MamabeCsrf::verify();
-    $value = strtolower(trim((string)($_POST['value'] ?? '')));
     $label = trim((string)($_POST['label'] ?? ''));
-    if (!preg_match('/^[a-z0-9_]{1,30}$/', $value)) {
-        $sourceError = 'Code must be lowercase letters, numbers and underscores only (up to 30 characters).';
-    } elseif ($label === '' || mb_strlen($label, 'UTF-8') > 100) {
+    if ($label === '' || mb_strlen($label, 'UTF-8') > 100) {
         $sourceError = 'Enter a label (up to 100 characters).';
     } else {
+        // The stored code is generated from the label (e.g. "Confinement Center" -> confinement_center) - staff never
+        // see or type it. Made unique with _2, _3... so a hidden/retired code is never reused for something different.
+        $base = trim(preg_replace('/[^a-z0-9]+/', '_', strtolower($label)), '_');
+        $base = substr($base !== '' ? $base : 'option', 0, 26);
+        $value = $base;
+        for ($n = 2; ; $n++) {
+            $chk = $conn->prepare("SELECT 1 FROM mamabe_source WHERE value = ?");
+            $chk->bind_param('s', $value);
+            $chk->execute();
+            $chk->store_result();
+            $taken = $chk->num_rows > 0;
+            $chk->close();
+            if (!$taken) break;
+            $value = $base . '_' . $n;
+        }
+
         $stmt = $conn->prepare("INSERT INTO mamabe_source (value, label, sort_order, recycle) VALUES (?, ?, (SELECT m FROM (SELECT COALESCE(MAX(sort_order), 0) + 1 AS m FROM mamabe_source) t), 0)");
         $stmt->bind_param('ss', $value, $label);
         try {
@@ -65,23 +78,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === '') {
             header('Location: ' . MAMABE_BASE . 'settings.php?source_saved=1');
             exit;
         } catch (mysqli_sql_exception $e) {
-            $sourceError = ($e->getCode() === 1062) ? "The code \"$value\" is already in use." : 'Could not add it. Please try again.';
+            $sourceError = 'Could not add it. Please try again.';
         }
     }
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'edit_source') {
     MamabeCsrf::verify();
     $id    = (int)($_POST['id'] ?? 0);
     $label = trim((string)($_POST['label'] ?? ''));
-    $sort  = (int)($_POST['sort_order'] ?? 0);
     if ($label === '' || mb_strlen($label, 'UTF-8') > 100) {
         $sourceError = 'Enter a label (up to 100 characters).';
     } else {
-        $stmt = $conn->prepare("UPDATE mamabe_source SET label = ?, sort_order = ? WHERE id = ?");
-        $stmt->bind_param('sii', $label, $sort, $id);
+        // Label only - sort_order is no longer edited here (new options simply go last, see add_source).
+        $stmt = $conn->prepare("UPDATE mamabe_source SET label = ? WHERE id = ?");
+        $stmt->bind_param('si', $label, $id);
         $stmt->execute();
         $stmt->close();
         header('Location: ' . MAMABE_BASE . 'settings.php?source_saved=1');
         exit;
+    }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'move_source') {
+    // ▲/▼ - swap with the neighbour in the same group (active rows among themselves, hidden among themselves), in
+    // the same order the table shows, then renumber every row 1..n so ties/gaps from older data never block a move.
+    MamabeCsrf::verify();
+    $id  = (int)($_POST['id'] ?? 0);
+    $dir = ($_POST['dir'] ?? '') === 'up' ? -1 : 1;
+    $rows = $conn->query("SELECT id, recycle FROM mamabe_source ORDER BY recycle, sort_order, label")->fetch_all(MYSQLI_ASSOC);
+    $ids  = array_map('intval', array_column($rows, 'id'));
+    $i    = array_search($id, $ids, true);
+    $j    = $i === false ? false : $i + $dir;
+    if ($i !== false && isset($rows[$j]) && (int)$rows[$j]['recycle'] === (int)$rows[$i]['recycle']) {
+        list($ids[$i], $ids[$j]) = array($ids[$j], $ids[$i]);
+        $stmt = $conn->prepare("UPDATE mamabe_source SET sort_order = ? WHERE id = ?");
+        foreach ($ids as $pos => $rowId) {
+            $order = $pos + 1;
+            $stmt->bind_param('ii', $order, $rowId);
+            $stmt->execute();
+        }
+        $stmt->close();
+    }
+    header('Location: ' . MAMABE_BASE . 'settings.php?source_saved=1');
+    exit;
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'delete_source') {
+    // Permanent delete - only for an option no submission ever used (otherwise past registrations would lose their
+    // label; Hide is the way to retire those). 'confinement_center' is fixed: the public form switches to the Avida
+    // outlet list by that name, and MamabeRecords::ensureSourceTable() re-creates it anyway.
+    MamabeCsrf::verify();
+    $id = (int)($_POST['id'] ?? 0);
+    $stmt = $conn->prepare("SELECT value FROM mamabe_source WHERE id = ?");
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    $stmt->bind_result($delValue);
+    $found = $stmt->fetch();
+    $stmt->close();
+
+    if (!$found) {
+        $sourceError = 'Option not found.';
+    } elseif ($delValue === 'confinement_center') {
+        $sourceError = 'Confinement center cannot be deleted - the form needs it for the Avida outlet list. Hide it instead.';
+    } else {
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM mamabe_submission WHERE source = ?");
+        $stmt->bind_param('s', $delValue);
+        $stmt->execute();
+        $stmt->bind_result($used);
+        $stmt->fetch();
+        $stmt->close();
+
+        if ($used > 0) {
+            $sourceError = "This option was used by $used registration(s), so it cannot be deleted - hide it instead.";
+        } else {
+            $stmt = $conn->prepare("DELETE FROM mamabe_source WHERE id = ?");
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $stmt->close();
+            header('Location: ' . MAMABE_BASE . 'settings.php?source_saved=1');
+            exit;
+        }
     }
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && $mode === 'toggle_source') {
     MamabeCsrf::verify();
@@ -208,7 +279,6 @@ if ($guideFile !== '' && !is_file($guideFile)) { $guideExt = ''; $guideFile = ''
         <input type="hidden" name="mode" value="edit_source">
         <input type="hidden" name="id" id="srcEditId">
         <input type="hidden" name="label" id="srcEditLabel">
-        <input type="hidden" name="sort_order" id="srcEditSort">
     </form>
     <form id="srcToggleForm" method="post" style="display:none;">
         <?php echo MamabeCsrf::field(); ?>
@@ -216,35 +286,101 @@ if ($guideFile !== '' && !is_file($guideFile)) { $guideExt = ''; $guideFile = ''
         <input type="hidden" name="id" id="srcToggleId">
         <input type="hidden" name="recycle" id="srcToggleRecycle">
     </form>
+    <form id="srcMoveForm" method="post" style="display:none;">
+        <?php echo MamabeCsrf::field(); ?>
+        <input type="hidden" name="mode" value="move_source">
+        <input type="hidden" name="id" id="srcMoveId">
+        <input type="hidden" name="dir" id="srcMoveDir">
+    </form>
+    <form id="srcDeleteForm" method="post" style="display:none;">
+        <?php echo MamabeCsrf::field(); ?>
+        <input type="hidden" name="mode" value="delete_source">
+        <input type="hidden" name="id" id="srcDeleteId">
+    </form>
 
-    <table class="myTable alpro-table" width="100%" style="margin-bottom:16px;">
+    <style>
+        .mamabe-src { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 14px; }
+        .mamabe-src th { background: #f1f3f5; color: #495057; font-size: 12px; font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 1px solid #dee2e6; }
+        .mamabe-src td { padding: 5px 8px; border-bottom: 1px solid #edf0f2; vertical-align: middle; }
+        .mamabe-src tr.is-hidden td { background: #fafafa; }
+        .mamabe-src tr.is-hidden input { color: #9aa0a6; }
+        .mamabe-src input { font-size: 13px; padding: 4px 8px; height: 30px; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 4px; width: 100%; }
+        .mamabe-src input[type=number] { width: 54px; text-align: center; }
+        .mamabe-src .src-pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+        .mamabe-src .src-pill.on  { background: #e6f6f1; color: #128C7E; }
+        .mamabe-src .src-pill.off { background: #f1f3f5; color: #868e96; }
+        .mamabe-src .src-actions { white-space: nowrap; text-align: center; }
+        .mamabe-src .src-actions .src-btn:first-child { margin-left: 0; }
+        .mamabe-src .src-btn { font-size: 12px; padding: 3px 10px; border-radius: 4px; border: 1px solid #ced4da; background: #fff; color: #333; cursor: pointer; margin-left: 4px; line-height: 1.5; }
+        .mamabe-src .src-btn:hover { background: #f1f3f5; }
+        .mamabe-src .src-btn.icon { width: 30px; height: 28px; padding: 0; line-height: 0; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: #495057; }
+        .mamabe-src .src-btn.save { color: #128C7E; border-color: #b7e4d8; }
+        .mamabe-src .src-btn.save:hover { background: #128C7E; color: #fff; border-color: #128C7E; }
+        .mamabe-src .src-btn.show { color: #0d6efd; border-color: #b6d0fb; }
+        .mamabe-src .src-btn.show:hover { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+        .mamabe-src .src-btn.del { color: #c62828; border-color: #f1c4c4; }
+        .mamabe-src .src-btn.del:hover { background: #c62828; color: #fff; border-color: #c62828; }
+        .mamabe-src .src-move { white-space: nowrap; padding-right: 0; }
+        .mamabe-src .src-move button { width: 20px; height: 22px; padding: 0; line-height: 0; border: 1px solid #dee2e6; background: #fff; color: #495057; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
+        .mamabe-src .src-move button:first-child { border-radius: 4px 0 0 4px; }
+        .mamabe-src .src-move button:last-child  { border-radius: 0 4px 4px 0; border-left: 0; }
+        .mamabe-src .src-move button:hover:not(:disabled) { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+        .mamabe-src .src-move button:disabled { color: #ced4da; cursor: default; }
+        .mamabe-src .src-btn-gap { display: inline-block; width: 30px; margin-left: 4px; vertical-align: middle; }
+        .mamabe-src-add { display: flex; gap: 8px; align-items: center; }
+        .mamabe-src-add input { flex: 1; font-size: 13px; padding: 4px 8px; height: 30px; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 4px; }
+        .mamabe-src-add button { font-size: 12px; padding: 0 16px; height: 30px; border-radius: 4px; border: 0; background: #0d6efd; color: #fff; font-weight: 600; cursor: pointer; }
+    </style>
+    <table class="mamabe-src">
         <tr>
-            <th>Order</th><th>Code</th><th>Label</th><th width="90">Status</th><th width="170"></th>
+            <th style="width:44px;"></th><th>Label</th><th style="width:80px;text-align:center;">Status</th><th style="width:120px;text-align:center;">Action</th>
         </tr>
-        <?php if ($sourceRows): foreach ($sourceRows as $s): ?>
-        <tr<?php echo $s['recycle'] ? ' style="opacity:.55;"' : ''; ?>>
-            <td><input class="alpro-input" type="number" id="src_sort_<?php echo (int)$s['id']; ?>" value="<?php echo (int)$s['sort_order']; ?>" style="width:60px;"></td>
-            <td class="alpro-mono"><?php echo htmlspecialchars($s['value']); ?></td>
-            <td><input class="alpro-input" type="text" id="src_label_<?php echo (int)$s['id']; ?>" maxlength="100" value="<?php echo htmlspecialchars($s['label']); ?>"></td>
-            <td><?php echo $s['recycle'] ? '<span class="alpro-muted">Hidden</span>' : '<span style="color:#128C7E;font-weight:bold;">Active</span>'; ?></td>
-            <td>
-                <button type="button" class="alpro-btn alpro-btn-grey" style="font-size:0.85em;padding:4px 10px;"
-                        onclick="mamabeSaveSource(<?php echo (int)$s['id']; ?>)">Save</button>
-                <button type="button" class="alpro-btn <?php echo $s['recycle'] ? 'alpro-btn-blue' : 'alpro-btn-grey'; ?>" style="font-size:0.85em;padding:4px 10px;"
-                        onclick="mamabeToggleSource(<?php echo (int)$s['id']; ?>, <?php echo $s['recycle'] ? 0 : 1; ?>)">
-                    <?php echo $s['recycle'] ? 'Unhide' : 'Hide'; ?>
+        <?php if ($sourceRows): foreach ($sourceRows as $k => $s): $sid = (int)$s['id'];
+            // ▲/▼ only move within the same group (active / hidden) - no arrow past the group's first/last row.
+            $canUp   = isset($sourceRows[$k - 1]) && $sourceRows[$k - 1]['recycle'] == $s['recycle'];
+            $canDown = isset($sourceRows[$k + 1]) && $sourceRows[$k + 1]['recycle'] == $s['recycle'];
+        ?>
+        <tr<?php echo $s['recycle'] ? ' class="is-hidden"' : ''; ?>>
+            <td class="src-move">
+                <button type="button" title="Move up" aria-label="Move up" <?php echo $canUp ? 'onclick="mamabeMoveSource(' . $sid . ', \'up\')"' : 'disabled'; ?>>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+                </button><button type="button" title="Move down" aria-label="Move down" <?php echo $canDown ? 'onclick="mamabeMoveSource(' . $sid . ', \'down\')"' : 'disabled'; ?>>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
                 </button>
+            </td>
+            <td><input type="text" id="src_label_<?php echo $sid; ?>" maxlength="100" value="<?php echo htmlspecialchars($s['label']); ?>"></td>
+            <td style="text-align:center;"><?php echo $s['recycle'] ? '<span class="src-pill off">Hidden</span>' : '<span class="src-pill on">Active</span>'; ?></td>
+            <td class="src-actions">
+                <button type="button" class="src-btn icon save" title="Save" aria-label="Save" onclick="mamabeSaveSource(<?php echo $sid; ?>)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                </button>
+                <?php if ($s['recycle']): ?>
+                <button type="button" class="src-btn icon show" title="Unhide (show on the form)" aria-label="Unhide" onclick="mamabeToggleSource(<?php echo $sid; ?>, 0)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                <?php else: ?>
+                <button type="button" class="src-btn icon" title="Hide from the form" aria-label="Hide" onclick="mamabeToggleSource(<?php echo $sid; ?>, 1)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>
+                </button>
+                <?php endif; ?>
+                <?php if ($s['value'] !== 'confinement_center'): ?>
+                <button type="button" class="src-btn icon del" title="Delete permanently" aria-label="Delete"
+                        onclick="mamabeDeleteSource(<?php echo $sid; ?>, <?php echo htmlspecialchars(json_encode($s['label']), ENT_QUOTES); ?>)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                </button>
+                <?php else: ?>
+                <span class="src-btn-gap"></span>
+                <?php endif; ?>
             </td>
         </tr>
         <?php endforeach; else: ?>
-        <tr><td colspan="5" class="alpro-center alpro-muted">No options yet.</td></tr>
+        <tr><td colspan="4" class="alpro-center alpro-muted">No options yet.</td></tr>
         <?php endif; ?>
     </table>
     <script>
     function mamabeSaveSource(id) {
         document.getElementById('srcEditId').value = id;
         document.getElementById('srcEditLabel').value = document.getElementById('src_label_' + id).value;
-        document.getElementById('srcEditSort').value = document.getElementById('src_sort_' + id).value;
         document.getElementById('srcEditForm').submit();
     }
     function mamabeToggleSource(id, newRecycle) {
@@ -252,25 +388,25 @@ if ($guideFile !== '' && !is_file($guideFile)) { $guideExt = ''; $guideFile = ''
         document.getElementById('srcToggleRecycle').value = newRecycle;
         document.getElementById('srcToggleForm').submit();
     }
+    function mamabeMoveSource(id, dir) {
+        document.getElementById('srcMoveId').value = id;
+        document.getElementById('srcMoveDir').value = dir;
+        document.getElementById('srcMoveForm').submit();
+    }
+    function mamabeDeleteSource(id, label) {
+        if (!confirm('Delete "' + label + '" permanently? This cannot be undone.')) return;
+        document.getElementById('srcDeleteId').value = id;
+        document.getElementById('srcDeleteForm').submit();
+    }
     </script>
 
-    <div style="font-weight:bold;margin-bottom:6px;">Add a new option</div>
-    <form method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+    <div style="font-weight:600;font-size:13px;margin-bottom:6px;">Add a new option</div>
+    <form method="post" class="mamabe-src-add">
         <?php echo MamabeCsrf::field(); ?>
         <input type="hidden" name="mode" value="add_source">
-        <div class="alpro-field" style="max-width:180px;">
-            <label for="src_value">Code</label>
-            <input class="alpro-input" type="text" id="src_value" name="value" maxlength="30" pattern="[a-z0-9_]+" required
-                   placeholder="e.g. website">
-        </div>
-        <div class="alpro-field" style="flex:1;min-width:180px;">
-            <label for="src_label">Label shown on the form</label>
-            <input class="alpro-input" type="text" id="src_label" name="label" maxlength="100" required
-                   placeholder="e.g. Our website">
-        </div>
-        <button type="submit" class="alpro-btn alpro-btn-blue">Add</button>
+        <input type="text" id="src_label" name="label" maxlength="100" required placeholder="Label shown on the form, e.g. Our website" aria-label="Label shown on the form">
+        <button type="submit">+ Add</button>
     </form>
-    <p class="alpro-muted" style="font-size:12px;margin:8px 0 0;">Code: lowercase letters, numbers and underscores only - stored on every submission, so pick it once and don't reuse a retired one for something different.</p>
 </fieldset>
 
 <fieldset>
