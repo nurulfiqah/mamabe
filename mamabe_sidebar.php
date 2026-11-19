@@ -40,7 +40,7 @@ $mb = '/odb/' . basename(__DIR__) . '/';
 <div class="alpro-box" style="margin-bottom:20px;background:#fff;overflow:visible;">
   <div class="alpro-actions" style="margin-bottom:0;display:flex;align-items:center;flex-wrap:wrap;gap:5px;overflow:visible;">
 
-    <!-- <strong style="margin-right:10px;font-size:16px;"><img src="/odb/mamabe/images/icon.gif" style="height:30px;vertical-align:middle;margin-right:4px"> MamaBe</strong> -->
+    <!-- <strong style="margin-right:10px;font-size:16px;"><img src="<?php echo $mb; ?>images/icon.gif" style="height:30px;vertical-align:middle;margin-right:4px"> MamaBe</strong> -->
 
     <!-- <a href="index.php"
        class="alpro-btn <?php echo ($current_page === 'index.php') ? 'alpro-btn-blue' : 'alpro-btn-grey'; ?>">
@@ -53,8 +53,8 @@ $mb = '/odb/' . basename(__DIR__) . '/';
         Mama &#9662;
       </button>
       <div class="dropdown-content">
-        <a href="/odb/mamabe/mamabe_mama_list.php"><img src="/odb/mamabe/images/mom.png" style="width:16px;vertical-align:middle;margin-right:5px;"> Mama List</a>
-        <a href="/odb/mamabe/mamabe_mama_add.php">&#43; Add Mama</a>
+        <a href="<?php echo $mb; ?>mamabe_mama_list.php"><img src="<?php echo $mb; ?>images/mom.png" style="width:16px;vertical-align:middle;margin-right:5px;"> Mama List</a>
+        <a href="<?php echo $mb; ?>mamabe_mama_add.php">&#43; Add Mama</a>
       </div>
     </div>
 
@@ -64,20 +64,20 @@ $mb = '/odb/' . basename(__DIR__) . '/';
     ?>
     <?php if (isset($mamab_autho) && in_array($mamab_autho, array('1', '3'), true)): ?>
     <div class="dropdown">
-      <button class="alpro-btn <?php echo (strpos($_SERVER['PHP_SELF'], '/mamabe/registration/') !== false) ? 'alpro-btn-blue' : 'alpro-btn-grey'; ?>"
+      <button class="alpro-btn <?php echo (strpos($_SERVER['PHP_SELF'], '/registration/') !== false) ? 'alpro-btn-blue' : 'alpro-btn-grey'; ?>"
               style="cursor:pointer;border:none;outline:none;display:inline-flex;align-items:center;gap:4px;">
         Website Registrations &#9662;
       </button>
       <div class="dropdown-content">
-        <a href="/odb/mamabe/registration/index.php">&#128203; Submissions</a>
+        <a href="<?php echo $mb; ?>registration/index.php">&#128203; Submissions</a>
         <?php if ($_mamabe_can_ai): ?>
-        <a href="/odb/mamabe/registration/ai_analysis.php">&#128202; AI Analysis</a>
+        <a href="<?php echo $mb; ?>registration/ai_analysis.php">&#128202; AI Analysis</a>
         <?php endif; ?>
       </div>
     </div>
 
-    <a href="/odb/mamabe/voucher/index.php"
-       class="alpro-btn <?php echo (strpos($_SERVER['PHP_SELF'], '/mamabe/voucher/') !== false) ? 'alpro-btn-blue' : 'alpro-btn-grey'; ?>">
+    <a href="<?php echo $mb; ?>voucher/index.php"
+       class="alpro-btn <?php echo (strpos($_SERVER['PHP_SELF'], '/voucher/') !== false) ? 'alpro-btn-blue' : 'alpro-btn-grey'; ?>">
       &#127381; Voucher
     </a>
 
@@ -87,8 +87,8 @@ $mb = '/odb/' . basename(__DIR__) . '/';
         Campaign &#9662;
       </button>
       <div class="dropdown-content">
-        <a href="/odb/mamabe/mamabe_campaign_list.php"><img src="/odb/mamabe/images/chat.png" style="width:16px;vertical-align:middle;margin-right:5px;"> Campaign List</a>
-        <a href="/odb/mamabe/mamabe_add_campaign.php">&#43; Add Campaign</a>
+        <a href="<?php echo $mb; ?>mamabe_campaign_list.php"><img src="<?php echo $mb; ?>images/chat.png" style="width:16px;vertical-align:middle;margin-right:5px;"> Campaign List</a>
+        <a href="<?php echo $mb; ?>mamabe_add_campaign.php">&#43; Add Campaign</a>
       </div>
     </div>
 
@@ -98,11 +98,11 @@ $mb = '/odb/' . basename(__DIR__) . '/';
         Settings &#9662;
       </button>
       <div class="dropdown-content">
-        <a href="/odb/mamabe/mamabe_sku_master.php"><img src="/odb/mamabe/images/view.png" style="width:16px;vertical-align:middle;margin-right:5px;"> SKU Master</a>
+        <a href="<?php echo $mb; ?>mamabe_sku_master.php"><img src="<?php echo $mb; ?>images/view.png" style="width:16px;vertical-align:middle;margin-right:5px;"> SKU Master</a>
         <?php if (isset($mamab_autho) && in_array($mamab_autho, array('1', '3'), true)): ?>
-        <a href="/odb/mamabe/mamabe_price_mismatch.php" style="color:#c62828;">&#9888; Mismatch Report</a>
-        <a href="/odb/mamabe/registration/settings.php">&#9881; Website Registration Settings</a>
-        <a href="/odb/mamabe/registration/email_templates.php">&#9993; Email Templates</a>
+        <a href="<?php echo $mb; ?>mamabe_price_mismatch.php" style="color:#c62828;">&#9888; Mismatch Report</a>
+        <a href="<?php echo $mb; ?>registration/settings.php">&#9881; Website Registration Settings</a>
+        <a href="<?php echo $mb; ?>registration/email_templates.php">&#9993; Email Templates</a>
         <?php endif; ?>
       </div>
     </div>
