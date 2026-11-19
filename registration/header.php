@@ -12,7 +12,7 @@
 $page_title = isset($page_title) ? $page_title : 'Mamabe';
 
 if (!defined('MAMABE_BASE')) {
-    define('MAMABE_BASE', '/odb/mamabe/' . basename(dirname(__FILE__)) . '/');   // lives inside the MamaBe module folder
+    define('MAMABE_BASE', '/odb/' . basename(dirname(dirname(__FILE__))) . '/' . basename(dirname(__FILE__)) . '/');
 }
 
 // lock_adv.php echoes odb's shared HTML as soon as the session check passes - buffer the whole page

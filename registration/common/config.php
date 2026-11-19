@@ -15,7 +15,7 @@ define('MAMABE_STORE_MAX_PX',      1600);                                 // sto
 // to the same NAS folders it uses (pink_book/, baby_health_book/), via that module's nas_config.php.
 define('MAMABE_NAS_CONFIG',        dirname(__FILE__) . '/../../nas_config.php');
 define('MAMABE_REGISTERED_BY',     'MamaBe website form');                // mamabe_mama.registered_by / mamabe_baby.*_filled_by for these rows
-define('MAMABE_MAMA_DETAIL_URL',  '/odb/mamabe/mamabe_mama_detail.php?id=');  // admin list links each row to the MamaBe module's mama page
+define('MAMABE_MAMA_DETAIL_URL',  '/odb/' . basename(dirname(dirname(dirname(__FILE__)))) . '/mamabe_mama_detail.php?id=');
 
 // Fixed production domain for absolute URLs built into emails (logo, redeem guide image). Deliberately NOT built
 // from $_SERVER['HTTP_HOST']: most approvals happen through worker.php (background, triggered by a fire-and-forget

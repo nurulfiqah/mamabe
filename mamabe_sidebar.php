@@ -1,5 +1,6 @@
 <?php
 $current_page = basename($_SERVER['PHP_SELF']);
+$mb = '/odb/' . basename(__DIR__) . '/';
 ?>
 <link rel="stylesheet" href="/odb/common/css/layout.css">
 <link rel="stylesheet" href="/odb/common/css/page.css">
